@@ -6,7 +6,7 @@ import typer
 
 from asistente import config as config_mod
 from asistente.agent.loop import Agente
-from asistente.cli import render
+from asistente.cli import render, sesion
 from asistente.llm.ollama import ClienteOllama
 from asistente.tools import cargar_herramientas
 
@@ -26,22 +26,34 @@ def _crear_agente(cfg: config_mod.Config) -> Agente:
         tiempo_limite=cfg.tiempo_limite,
     )
     return Agente(
-        cliente,
+        sesion.ClienteVisible(cliente, render.anunciar_herramienta),
         cfg,
         confirmador=render.pedir_confirmacion,
         aprobador_plan=render.aprobar_plan,
     )
 
 
-def _comprobar_modelo(agente: Agente) -> bool:
-    disponible, motivo = agente.cliente.disponible()
-    if not disponible:
-        render.error(motivo)
-        render.aviso(
-            "Instala Ollama desde https://ollama.com y luego ejecuta:\n"
-            f"  ollama pull {agente.config.modelo}"
-        )
-    return disponible
+def _atender(agente: Agente, peticion: str) -> None:
+    """Ejecuta una petición con Bruma animada; nunca deja escapar un traceback.
+
+    Ctrl+C mientras piensa cancela solo esta petición.
+    """
+    consola = render.consola
+    try:
+        with render.Pensando():
+            ejecucion = agente.ejecutar(peticion)
+    except KeyboardInterrupt:
+        render.cancelado("Listo, cancelé esa petición.")
+        return
+    except Exception as exc:  # noqa: BLE001 - el usuario nunca ve tracebacks
+        render.error_inesperado(sesion.registrar_error(exc))
+        return
+    try:
+        _recordar(ejecucion)
+        render.mostrar_ejecucion(ejecucion, agente.config.modelo)
+    except Exception as exc:  # noqa: BLE001
+        render.error_inesperado(sesion.registrar_error(exc))
+    consola.print()
 
 
 # Última ejecución de esta sesión, para «asistente receta guardar».
@@ -85,38 +97,97 @@ def pedir(peticion: list[str] = typer.Argument(..., help="Qué quieres hacer."))
     """Ejecuta una sola petición y termina."""
     cfg = config_mod.cargar()
     agente = _crear_agente(cfg)
-    if not _comprobar_modelo(agente):
+    estado = sesion.estado_ollama(agente.cliente)
+    if estado != "conectado":
+        render.sin_ollama(cfg.modelo, estado)
         raise typer.Exit(code=1)
+    _atender(agente, " ".join(peticion))
 
-    ejecucion = agente.ejecutar(" ".join(peticion))
-    _recordar(ejecucion)
-    render.mostrar_ejecucion(ejecucion)
+
+def _deshacer_ultimo() -> None:
+    """«deshacer» dentro del modo interactivo: revierte lo último."""
+    from asistente.undo.diario import Diario
+    from asistente.undo.revertir import revertir
+
+    cfg = config_mod.cargar()
+    diario = Diario(cfg.ruta_diario)
+    pendientes = diario.pendientes()
+    if not pendientes:
+        render.aviso("No hay nada que deshacer.")
+        return
+    operacion = pendientes[0]
+    render.consola.print(
+        render.Text("Lo último que hice: ").append(operacion.descripcion(), style="bold")
+    )
+    if not render.preguntar("¿Lo deshago?"):
+        render.aviso("Vale, lo dejo como está.")
+        return
+    ok, mensaje = revertir(operacion, diario)
+    if ok:
+        render.exito(mensaje)
+    else:
+        render.problema(mensaje)
 
 
 @app.command("charlar")
 def charlar():
     """Modo interactivo: varias peticiones seguidas."""
+    # Ctrl+C fuera de una petición nunca debe acabar en un traceback.
+    try:
+        _bucle_interactivo()
+    except KeyboardInterrupt:
+        render.despedida()
+
+
+def _bucle_interactivo():
     cfg = config_mod.cargar()
     agente = _crear_agente(cfg)
-    if not _comprobar_modelo(agente):
-        raise typer.Exit(code=1)
+    estado = sesion.estado_ollama(agente.cliente)
+    render.bienvenida(cfg.modelo, estado)
 
-    render.consola.print(
-        f"[bold green]Asistente[/bold green] "
-        f"[dim]({cfg.modelo})[/dim] — escribe 'salir' para terminar."
-    )
     while True:
+        render.consola.print()
+        render.consola.print(render.linea_comandos())
         try:
-            peticion = render.consola.input("[bold cyan]›[/bold cyan] ").strip()
+            texto = render.consola.input(
+                f"[bold {render.AZUL_CLARO}]{render._s('prompt')}[/] "
+            )
         except (EOFError, KeyboardInterrupt):
-            render.consola.print("\n[dim]Hasta luego.[/dim]")
+            render.despedida()
             return
-        if peticion.lower() in {"salir", "exit", "quit", ""}:
-            render.consola.print("[dim]Hasta luego.[/dim]")
-            return
-        ejecucion = agente.ejecutar(peticion)
-        _recordar(ejecucion)
-        render.mostrar_ejecucion(ejecucion)
+
+        tipo, valor = sesion.resolver_entrada(texto, render.EJEMPLOS)
+        if tipo == "sugerir":
+            render.sugerir_ejemplo(valor)
+            continue
+        if tipo == "comando":
+            if valor == "salir":
+                render.despedida()
+                return
+            if valor == "ayuda":
+                render.ayuda()
+            elif valor == "limpiar":
+                render.consola.clear()
+                render.consola.print(render.linea_estado(cfg.modelo, estado))
+            elif valor == "deshacer":
+                try:
+                    _deshacer_ultimo()
+                except Exception as exc:  # noqa: BLE001
+                    render.error_inesperado(sesion.registrar_error(exc))
+            continue
+
+        if valor != texto.strip():  # eligió un ejemplo por número
+            render.consola.print(f"[dim]{render._s('flecha')} {valor}[/dim]")
+
+        # Si Ollama no estaba listo, se vuelve a mirar antes de cada petición.
+        if estado != "conectado":
+            estado = sesion.estado_ollama(agente.cliente)
+            if estado != "conectado":
+                render.sin_ollama(cfg.modelo, estado)
+                continue
+            render.consola.print(render.linea_estado(cfg.modelo, estado))
+
+        _atender(agente, valor)
 
 
 @app.command("herramientas")
@@ -126,8 +197,8 @@ def herramientas():
 
     cargar_herramientas()
     tabla = render.Table(title="Herramientas disponibles")
-    tabla.add_column("Nombre", style="cyan")
-    tabla.add_column("Permiso", style="yellow")
+    tabla.add_column("Nombre", style=render.AZUL_CLARO)
+    tabla.add_column("Permiso", style=render.AMARILLO)
     tabla.add_column("Descripción", overflow="fold")
 
     for nombre, clase in sorted(registro.todas().items()):
@@ -144,7 +215,7 @@ def configurar(
     cfg = config_mod.cargar()
     if crear:
         ruta = config_mod.guardar(cfg)
-        render.consola.print(f"[green]✓[/green] Configuración en: {ruta}")
+        render.exito(f"Configuración en: {ruta}")
         return
 
     render.consola.print(f"[dim]Archivo:[/dim] {config_mod.ruta_archivo_config()}")
@@ -190,7 +261,7 @@ def deshacer(
             return
         ok, mensaje = revertir(operacion, diario)
         if ok:
-            render.consola.print(f"[green]✓[/green] {mensaje}")
+            render.exito(f"{mensaje}")
         else:
             render.error(mensaje)
 
@@ -297,8 +368,8 @@ def receta_guardar(
         return
 
     ruta = modelo.guardar(receta, cfg.ruta_recetas)
-    render.consola.print(
-        f"[green]✓[/green] Receta «{receta.nombre}» guardada "
+    render.exito(
+        f"Receta «{receta.nombre}» guardada "
         f"({len(receta.pasos)} pasos)."
     )
     huecos = receta.huecos()
@@ -371,7 +442,7 @@ def receta_ejecutar(
     resultado = ejecutor.ejecutar(preparados)
     for herramienta, salida in resultado.pasos:
         if salida.ok:
-            render.consola.print(f"[green]✓[/green] {salida.resumen}")
+            render.exito(f"{salida.resumen}")
         else:
             render.error(salida.resumen)
 
@@ -381,8 +452,8 @@ def receta_ejecutar(
 
     receta.veces_usada += 1
     modelo.guardar(receta, cfg.ruta_recetas)
-    render.consola.print(
-        f"[green]✓[/green] Receta «{receta.nombre}» completada "
+    render.exito(
+        f"Receta «{receta.nombre}» completada "
         f"({len(resultado.pasos)} pasos)."
     )
 
@@ -405,7 +476,7 @@ def receta_borrar(nombre: str = typer.Argument(..., help="Nombre de la receta.")
         return
 
     (cfg.ruta_recetas / modelo.archivo_de(receta.nombre)).unlink(missing_ok=True)
-    render.consola.print(f"[green]✓[/green] Receta «{receta.nombre}» borrada.")
+    render.exito(f"Receta «{receta.nombre}» borrada.")
 
 
 class _ClienteNulo:
