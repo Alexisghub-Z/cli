@@ -13,8 +13,9 @@ servidor) para hacer tareas a partir de instrucciones en español.
 > **Estado:** el alcance de la versión 1 está completo — 14 herramientas,
 > deshacer universal, plan con vista previa, recetas y 204 pruebas.
 >
-> Aún **no se ha medido con un modelo real**: ejecuta la evaluación
-> (`python evals/ejecutar.py`) y comparte el resultado.
+> **Medido con modelo real:** `qwen2.5:3b` acierta el **94.4%** de las 36
+> tareas de evaluación (ver [Resultados](#resultados-de-la-evaluación)).
+> `qwen3:8b` sigue sin medir.
 
 ## Por qué este y no otro
 
@@ -279,6 +280,30 @@ python evals/ejecutar.py --json salida.json   # guardar el detalle
 Incluye tareas que el asistente **debe rechazar** (tocar `/etc`, leer tu clave
 SSH) y tareas donde debe preferir la herramienta segura al comando de shell.
 La evaluación no ejecuta nada: solo mide qué herramienta elegiría.
+
+### Resultados de la evaluación
+
+| Modelo | Aciertos | Cuándo |
+|---|---|---|
+| `qwen2.5:3b` | 32/36 (88.9%) | antes de ajustar las descripciones |
+| `qwen2.5:3b` | **34/36 (94.4%)** | después de ajustarlas |
+| `qwen3:8b` | sin medir | hace falta una máquina con 16 GB |
+
+Los datos crudos están en `evals/resultados/`. La lección más útil: **cuando
+el modelo falla, el problema casi siempre está en la descripción de la
+herramienta, no en el prompt del sistema.** Subir del 88.9% al 94.4% fue
+cuestión de separar las descripciones que se solapaban y añadir referencias
+cruzadas («para leer el contenido usa leer_archivo»).
+
+El fallo más instructivo: con «elimina esa carpeta que ya no uso», el modelo
+elegía `mover` en lugar de `enviar_a_papelera`. Es el peor caso posible,
+porque `mover` también modifica archivos: el usuario podía aprobar un
+desplazamiento creyendo que desechaba algo. Se corrigió haciendo que
+`enviar_a_papelera` reclame los verbos «eliminar» y «borrar», y que `mover`
+diga explícitamente que no sirve para eso.
+
+`tests/test_descripciones.py` protege esas distinciones sin necesidad del
+modelo, para que no se pierdan al editar una descripción más adelante.
 
 ## Hoja de ruta
 
