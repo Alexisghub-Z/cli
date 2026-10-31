@@ -5,6 +5,11 @@ Trabajo en paralelo entre **@Alexisghub-Z** y **@celis23**.
 La división sigue las fronteras de los módulos: cada parte toca archivos
 distintos, así que podéis trabajar a la vez sin conflictos en Git.
 
+| Quién | Parte | Por qué |
+|---|---|---|
+| **@celis23** | A — medición del modelo | tiene la máquina capaz de correr un 8B |
+| **@Alexisghub-Z** | B — herramientas nuevas | no depende del modelo real |
+
 ## Estado actual
 
 El alcance de la versión 1 está completo y en `main`:
@@ -19,10 +24,19 @@ El alcance de la versión 1 está completo y en `main`:
 
 ---
 
-## Parte A — @Alexisghub-Z: medición y calidad del modelo
+## Parte A — @celis23: medición y calidad del modelo
 
 El objetivo es responder a una pregunta que todavía no tiene respuesta:
 *¿elige bien las herramientas `qwen3:8b` cuando le hablas en español?*
+
+> **Esta parte necesita una máquina con al menos 16 GB de RAM.** Un modelo
+> 8B cuantizado ocupa unos 5 GB solo de pesos; por debajo de ~8 GB libres el
+> sistema empieza a usar swap y cada respuesta tarda minutos en lugar de
+> segundos. Sin GPU todo corre en CPU, así que cuenta con 10–30 segundos por
+> respuesta: es normal, no es un fallo.
+>
+> Si la máquina no da para el 8B, mide `qwen2.5:3b` (~2 GB) y dilo en el
+> informe: comparar los dos es justamente el punto A2.
 
 ### A1. Montar Ollama y medir la línea base
 
@@ -65,7 +79,7 @@ descripciones de herramientas, `README.md`.
 
 ---
 
-## Parte B — @celis23: herramientas nuevas y robustez
+## Parte B — @Alexisghub-Z: herramientas nuevas y robustez
 
 El objetivo es ampliar lo que el asistente sabe hacer, sin tocar el agente.
 
@@ -106,8 +120,8 @@ personal». Revisa los `Resultado.error(...)` de `asistente/tools/`.
 
 ```bash
 # cada uno en su rama
-git checkout -b parte-a-evaluacion     # Alexis
-git checkout -b parte-b-herramientas   # Celis
+git checkout -b parte-a-evaluacion     # Celis
+git checkout -b parte-b-herramientas   # Alexis
 ```
 
 1. **No toquéis `asistente/agent/loop.py` ni `asistente/safety/`.** Son el
@@ -124,3 +138,12 @@ git checkout -b parte-b-herramientas   # Celis
 
 Leed [CONTRIBUTING.md](CONTRIBUTING.md): tiene la guía paso a paso para
 agregar una herramienta, con un ejemplo completo que funciona tal cual.
+
+## Si una parte termina antes
+
+Las dos partes son independientes **salvo en un punto**: si la medición
+(A3) encuentra que el modelo confunde dos herramientas, la solución está en
+el campo `descripcion` de esa herramienta, que es territorio de la parte B.
+
+Cuando pase, abrid un issue con el nombre de la herramienta y qué eligió el
+modelo en su lugar, en vez de editar el archivo del otro.
