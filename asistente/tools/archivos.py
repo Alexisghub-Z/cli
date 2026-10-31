@@ -43,11 +43,16 @@ class Mover(Herramienta):
         origen, destino = resolver(params.origen), resolver(params.destino)
 
         if not origen.exists():
-            return Resultado.error(f"No existe el origen: {origen}")
+            return Resultado.error(
+                f"No existe el origen: {origen}. Comprueba la ruta, o usa "
+                "buscar_archivos si no sabes dónde está."
+            )
         if destino.is_dir():
             destino = destino / origen.name
         if origen == destino:
-            return Resultado.error("El origen y el destino son el mismo.")
+            return Resultado.error(
+                "El origen y el destino son el mismo; no hay nada que mover."
+            )
         if destino.exists():
             destino = destino_libre(destino)
 
@@ -55,7 +60,10 @@ class Mover(Herramienta):
             destino.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(origen), str(destino))
         except (OSError, shutil.Error) as exc:
-            return Resultado.error(f"No pude mover: {exc}")
+            return Resultado.error(
+                f"No pude mover {origen.name}: {exc}. Comprueba que tienes "
+                "permiso de escritura en la carpeta de destino."
+            )
 
         _diario().registrar(
             Operacion(tipo="mover", origen=str(origen), destino=str(destino))
@@ -81,7 +89,10 @@ class Copiar(Herramienta):
         origen, destino = resolver(params.origen), resolver(params.destino)
 
         if not origen.exists():
-            return Resultado.error(f"No existe el origen: {origen}")
+            return Resultado.error(
+                f"No existe el origen: {origen}. Comprueba la ruta, o usa "
+                "buscar_archivos si no sabes dónde está."
+            )
         if destino.is_dir():
             destino = destino / origen.name
         if destino.exists():
@@ -94,7 +105,10 @@ class Copiar(Herramienta):
             else:
                 shutil.copy2(origen, destino)
         except (OSError, shutil.Error) as exc:
-            return Resultado.error(f"No pude copiar: {exc}")
+            return Resultado.error(
+                f"No pude copiar {origen.name}: {exc}. Puede faltar espacio en "
+                "disco o permiso de escritura en el destino."
+            )
 
         _diario().registrar(
             Operacion(tipo="copiar", origen=str(origen), destino=str(destino))
@@ -126,7 +140,9 @@ class Renombrar(Herramienta):
         nombre = params.nombre_nuevo.strip()
 
         if not origen.exists():
-            return Resultado.error(f"No existe: {origen}")
+            return Resultado.error(
+                f"No existe: {origen}. Comprueba la ruta con info_archivo."
+            )
         # Un nombre con separadores sería un movimiento disfrazado, y eso
         # podría sacar el archivo de la carpeta autorizada.
         if "/" in nombre or "\\" in nombre or nombre in {".", ".."}:
@@ -136,12 +152,18 @@ class Renombrar(Herramienta):
 
         destino = origen.with_name(nombre)
         if destino.exists():
-            return Resultado.error(f"Ya existe algo llamado {nombre}.")
+            return Resultado.error(
+                f"Ya existe algo llamado {nombre} en esa carpeta. "
+                "Elige otro nombre."
+            )
 
         try:
             origen.rename(destino)
         except OSError as exc:
-            return Resultado.error(f"No pude renombrar: {exc}")
+            return Resultado.error(
+                f"No pude renombrar {origen.name}: {exc}. Comprueba que el "
+                "archivo no esté abierto en otro programa."
+            )
 
         _diario().registrar(
             Operacion(tipo="renombrar", origen=str(origen), destino=str(destino))
@@ -167,12 +189,18 @@ class CrearCarpeta(Herramienta):
         destino = resolver(params.ruta)
 
         if destino.exists():
-            return Resultado.error(f"Ya existe: {destino}")
+            return Resultado.error(
+                f"Ya existe: {destino}. Si quieres ver qué contiene, usa "
+                "listar_directorio."
+            )
 
         try:
             destino.mkdir(parents=True)
         except OSError as exc:
-            return Resultado.error(f"No pude crear la carpeta: {exc}")
+            return Resultado.error(
+                f"No pude crear la carpeta: {exc}. Comprueba que tienes "
+                "permiso de escritura en la carpeta que la contiene."
+            )
 
         _diario().registrar(
             Operacion(tipo="crear_carpeta", destino=str(destino))
@@ -200,13 +228,18 @@ class EnviarAPapelera(Herramienta):
     def run(self, params: Params) -> Resultado:  # type: ignore[override]
         origen = resolver(params.ruta)
         if not origen.exists():
-            return Resultado.error(f"No existe: {origen}")
+            return Resultado.error(
+                f"No existe: {origen}. Comprueba la ruta con info_archivo."
+            )
 
         config = Config()
         try:
             guardado = enviar_a_papelera(origen, config.ruta_papelera)
         except (OSError, shutil.Error) as exc:
-            return Resultado.error(f"No pude enviar a la papelera: {exc}")
+            return Resultado.error(
+                f"No pude enviar {origen.name} a la papelera: {exc}. "
+                "Comprueba que no esté abierto en otro programa."
+            )
 
         _diario().registrar(
             Operacion(tipo="papelera", origen=str(origen), destino=guardado)

@@ -35,7 +35,10 @@ class EspacioEnDisco(Herramienta):
         try:
             uso = shutil.disk_usage(destino)
         except OSError as exc:
-            return Resultado.error(f"No pude consultar {destino}: {exc}")
+            return Resultado.error(
+                f"No pude consultar el disco de {destino}: {exc}. "
+                "Comprueba que la ruta existe."
+            )
 
         porcentaje = (uso.used / uso.total * 100) if uso.total else 0.0
         return Resultado(
@@ -138,7 +141,10 @@ class Procesos(Herramienta):
             else:
                 filas = _procesos_posix(params.limite)
         except (OSError, subprocess.SubprocessError) as exc:
-            return Resultado.error(f"No pude leer los procesos: {exc}")
+            return Resultado.error(
+                f"No pude leer la lista de procesos: {exc}. En Linux y macOS "
+                "hace falta el comando «ps»."
+            )
 
         if not filas:
             return Resultado.error("No obtuve información de procesos.")

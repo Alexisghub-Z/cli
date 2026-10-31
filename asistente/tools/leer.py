@@ -49,7 +49,10 @@ class LeerArchivo(Herramienta):
             )
 
         if not destino.exists():
-            return Resultado.error(f"No existe el archivo: {destino}")
+            return Resultado.error(
+                f"No existe el archivo: {destino}. Comprueba la ruta, o usa "
+                "buscar_archivos para localizarlo."
+            )
         if destino.is_dir():
             return Resultado.error(
                 f"Es una carpeta, no un archivo: {destino}. "
@@ -61,7 +64,10 @@ class LeerArchivo(Herramienta):
             with destino.open("rb") as binario:
                 crudo = binario.read(_MAX_BYTES)
         except OSError as exc:
-            return Resultado.error(f"No pude leer {destino}: {exc}")
+            return Resultado.error(
+                f"No pude leer {destino}: {exc}. Puede que no tengas permiso "
+                "sobre ese archivo."
+            )
 
         if _parece_binario(crudo):
             return Resultado.error(

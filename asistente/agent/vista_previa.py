@@ -143,6 +143,74 @@ def calcular(nombre: str, params: BaseModel) -> VistaPrevia | None:
             ],
         )
 
+    if nombre == "comprimir":
+        origen = resolver(getattr(params, "origen"))
+        indicado = getattr(params, "destino", "")
+        destino = (
+            resolver(indicado).with_suffix(".zip")
+            if indicado
+            else origen.with_suffix(".zip")
+        )
+        cambios = [Cambio(tipo="crear", detalle=f"Nuevo archivo: {destino}")]
+        if origen.is_dir():
+            cuantos = sum(1 for p in origen.rglob("*") if p.is_file())
+            cambios.append(
+                Cambio(
+                    tipo="leer",
+                    detalle=f"Comprimirá {cuantos} archivos de {origen}",
+                )
+            )
+        elif origen.exists():
+            cambios.append(
+                Cambio(tipo="leer", detalle=f"Origen: {_tamano(origen)}")
+            )
+        cambios.append(
+            Cambio(tipo="leer", detalle="El original no se modifica.")
+        )
+        return VistaPrevia(titulo=f"Comprimir {origen.name}", cambios=cambios)
+
+    if nombre == "descomprimir":
+        origen = resolver(getattr(params, "origen"))
+        indicado = getattr(params, "destino", "")
+        destino = (
+            resolver(indicado)
+            if indicado
+            else origen.parent / origen.name.split(".")[0]
+        )
+        cambios = [
+            Cambio(
+                tipo="crear",
+                detalle=f"Extraerá en: {destino}",
+                aviso=(
+                    "La carpeta ya existe; los archivos con el mismo nombre "
+                    "se reemplazarán."
+                    if destino.exists()
+                    else ""
+                ),
+            )
+        ]
+        # Cuántas entradas trae, sin extraer nada.
+        try:
+            import zipfile
+
+            if zipfile.is_zipfile(origen):
+                with zipfile.ZipFile(origen) as paquete:
+                    info = paquete.infolist()
+                cambios.append(
+                    Cambio(
+                        tipo="crear",
+                        detalle=(
+                            f"{len(info)} "
+                            f"{'elemento' if len(info) == 1 else 'elementos'}, "
+                            f"{formato_tamano(sum(i.file_size for i in info))} "
+                            "al descomprimir"
+                        ),
+                    )
+                )
+        except Exception:  # noqa: BLE001 - la vista previa nunca debe fallar
+            pass
+        return VistaPrevia(titulo=f"Descomprimir {origen.name}", cambios=cambios)
+
     if nombre == "ejecutar_comando":
         comando = getattr(params, "comando")
         carpeta = resolver(getattr(params, "carpeta", "."))
