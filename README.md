@@ -11,7 +11,7 @@ servidor) para hacer tareas a partir de instrucciones en español.
 ```
 
 > **Estado:** el alcance de la versión 1 está completo — 14 herramientas,
-> deshacer universal, plan con vista previa y 174 pruebas.
+> deshacer universal, plan con vista previa, recetas y 204 pruebas.
 >
 > Aún **no se ha medido con un modelo real**: ejecuta la evaluación
 > (`python evals/ejecutar.py`) y comparte el resultado.
@@ -73,6 +73,33 @@ asistente            # o: asistente charlar
 › ¿cuántos archivos PDF tengo en Documentos?
 › salir
 ```
+
+**Recetas** — guarda una tarea que salió bien y repítela:
+
+```bash
+asistente pedir "crea una carpeta PDF en Descargas y mueve ahí los pdf"
+asistente receta guardar "organizar pdf" --descripcion "ordena las descargas"
+asistente receta listar
+asistente receta ejecutar "organizar pdf"
+asistente receta borrar "organizar pdf"
+```
+
+Una receta guarda **nombres de herramienta y parámetros**, nunca comandos de
+shell: al reproducirla vuelve a pasar por el sistema de permisos, igual que si
+la pidiera el modelo. Una receta que apunte a una ruta protegida se bloquea.
+
+Los parámetros admiten huecos con `{nombre}`, que se rellenan al ejecutar:
+
+```json
+{"herramienta": "crear_carpeta", "argumentos": {"ruta": "{carpeta}/PDF"}}
+```
+
+```bash
+asistente receta ejecutar "organizar pdf" --dato carpeta=~/Documentos
+```
+
+Si falta un dato, se pide por teclado. Reproducir una receta **no necesita el
+modelo**: son llamadas directas a las herramientas, así que funciona sin Ollama.
 
 **Deshacer:**
 
@@ -232,7 +259,7 @@ el modelo repite la misma llamada sin avanzar, para no entrar en ciclos.
 ## Pruebas
 
 ```bash
-pytest          # 174 pruebas, menos de un segundo
+pytest          # 204 pruebas, menos de un segundo
 ```
 
 Las pruebas **no dependen del modelo real**: usan `ClienteSimulado`, que
@@ -269,8 +296,10 @@ La evaluación no ejecuta nada: solo mide qué herramienta elegiría.
 - [x] Plan y vista previa en tareas de varios pasos
 - [ ] Medir la evaluación con un modelo real
 
-Más adelante: recetas reutilizables, memoria de preferencias, sistema de
-plugins, herramienta de cámara con modelo de visión.
+- [x] Recetas: guardar una tarea exitosa y repetirla
+
+Más adelante: memoria de preferencias, sistema de plugins, herramienta de
+cámara con modelo de visión.
 
 ## Contribuir
 

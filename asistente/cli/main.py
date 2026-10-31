@@ -44,6 +44,42 @@ def _comprobar_modelo(agente: Agente) -> bool:
     return disponible
 
 
+# Última ejecución de esta sesión, para «asistente receta guardar».
+_ultima: "object | None" = None
+
+
+def _recordar(ejecucion):
+    """Guarda la ejecución en memoria y en disco, para poder hacer receta."""
+    global _ultima
+    _ultima = ejecucion
+    if not ejecucion.pasos or ejecucion.abortada:
+        return
+    try:
+        import json
+
+        from asistente.config import cargar as cargar_cfg
+
+        destino = cargar_cfg().ruta_recetas.parent / "ultima.json"
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        destino.write_text(
+            json.dumps(
+                [
+                    {
+                        "herramienta": paso.herramienta,
+                        "argumentos": paso.argumentos,
+                        "ok": paso.resultado.ok,
+                        "resumen": paso.resultado.resumen,
+                    }
+                    for paso in ejecucion.pasos
+                ],
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass  # no poder recordarla no debe romper la ejecución
+
+
 @app.command("pedir")
 def pedir(peticion: list[str] = typer.Argument(..., help="Qué quieres hacer.")):
     """Ejecuta una sola petición y termina."""
@@ -52,7 +88,9 @@ def pedir(peticion: list[str] = typer.Argument(..., help="Qué quieres hacer."))
     if not _comprobar_modelo(agente):
         raise typer.Exit(code=1)
 
-    render.mostrar_ejecucion(agente.ejecutar(" ".join(peticion)))
+    ejecucion = agente.ejecutar(" ".join(peticion))
+    _recordar(ejecucion)
+    render.mostrar_ejecucion(ejecucion)
 
 
 @app.command("charlar")
@@ -76,7 +114,9 @@ def charlar():
         if peticion.lower() in {"salir", "exit", "quit", ""}:
             render.consola.print("[dim]Hasta luego.[/dim]")
             return
-        render.mostrar_ejecucion(agente.ejecutar(peticion))
+        ejecucion = agente.ejecutar(peticion)
+        _recordar(ejecucion)
+        render.mostrar_ejecucion(ejecucion)
 
 
 @app.command("herramientas")
@@ -180,6 +220,204 @@ def papelera():
         tabla.add_row(elemento.name, formato_tamano(tamano))
     render.consola.print(tabla)
     render.consola.print(f"[dim]Total: {formato_tamano(total)}[/dim]")
+
+
+recetas_app = typer.Typer(help="Guarda tareas que salieron bien y repítelas.")
+app.add_typer(recetas_app, name="receta")
+
+
+def _pasos_recordados():
+    """Recupera los pasos de la última ejecución (memoria o disco)."""
+    if _ultima is not None and getattr(_ultima, "pasos", None):
+        return _ultima.pasos
+
+    import json
+    from dataclasses import dataclass
+
+    from asistente.tools.base import Resultado
+
+    @dataclass
+    class _Paso:
+        herramienta: str
+        argumentos: dict
+        resultado: Resultado
+
+    ruta = config_mod.cargar().ruta_recetas.parent / "ultima.json"
+    if not ruta.is_file():
+        return []
+    try:
+        datos = json.loads(ruta.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    return [
+        _Paso(
+            herramienta=str(d.get("herramienta", "")),
+            argumentos=d.get("argumentos") or {},
+            resultado=Resultado(
+                ok=bool(d.get("ok")), resumen=str(d.get("resumen") or "")
+            ),
+        )
+        for d in datos
+        if isinstance(d, dict)
+    ]
+
+
+@recetas_app.command("guardar")
+def receta_guardar(
+    nombre: str = typer.Argument(..., help="Nombre de la receta."),
+    descripcion: str = typer.Option("", "--descripcion", help="Para qué sirve."),
+):
+    """Guarda la última tarea realizada como receta reutilizable."""
+    from asistente.recetas import modelo
+
+    valido, motivo = modelo.nombre_valido(nombre)
+    if not valido:
+        render.error(motivo)
+        raise typer.Exit(code=1)
+
+    pasos = _pasos_recordados()
+    if not pasos:
+        render.aviso(
+            "No hay ninguna tarea reciente que guardar. Pide algo primero, "
+            "por ejemplo: asistente pedir \"crea una carpeta Facturas\""
+        )
+        raise typer.Exit(code=1)
+
+    receta, problema = modelo.desde_pasos(nombre, pasos, descripcion)
+    if receta is None:
+        render.error(problema)
+        raise typer.Exit(code=1)
+
+    cfg = config_mod.cargar()
+    existente = modelo.buscar(nombre, cfg.ruta_recetas)
+    if existente is not None and not render.Confirm.ask(
+        f"Ya existe una receta «{existente.nombre}». ¿La reemplazo?", default=False
+    ):
+        render.aviso("Cancelado.")
+        return
+
+    ruta = modelo.guardar(receta, cfg.ruta_recetas)
+    render.consola.print(
+        f"[green]✓[/green] Receta «{receta.nombre}» guardada "
+        f"({len(receta.pasos)} pasos)."
+    )
+    huecos = receta.huecos()
+    if huecos:
+        render.consola.print(
+            f"[dim]Pedirá estos datos al ejecutarla: {', '.join(huecos)}[/dim]"
+        )
+    render.consola.print(f"[dim]{ruta}[/dim]")
+
+
+@recetas_app.command("listar")
+def receta_listar():
+    """Muestra las recetas guardadas."""
+    from asistente.recetas import modelo
+
+    recetas = modelo.todas(config_mod.cargar().ruta_recetas)
+    if not recetas:
+        render.consola.print(
+            "[dim]No hay recetas guardadas. Haz una tarea y luego:[/dim]\n"
+            '[dim]  asistente receta guardar "mi tarea"[/dim]'
+        )
+        return
+    render.consola.print(render.tabla_recetas(recetas))
+
+
+@recetas_app.command("ejecutar")
+def receta_ejecutar(
+    nombre: str = typer.Argument(..., help="Nombre de la receta."),
+    dato: list[str] = typer.Option(
+        None, "--dato", help="Valor de un hueco, como carpeta=~/Descargas."
+    ),
+):
+    """Reproduce una receta guardada."""
+    from asistente.recetas import ejecutor, modelo
+
+    cfg = config_mod.cargar()
+    receta = modelo.buscar(nombre, cfg.ruta_recetas)
+    if receta is None:
+        render.error(
+            f"No encuentro la receta «{nombre}». "
+            "Usa «asistente receta listar» para ver las que hay."
+        )
+        raise typer.Exit(code=1)
+
+    valores: dict[str, str] = {}
+    for crudo in dato or []:
+        if "=" in crudo:
+            clave, _, valor = crudo.partition("=")
+            valores[clave.strip()] = valor.strip()
+
+    # Lo que falte, se pregunta.
+    for hueco in receta.huecos():
+        if not valores.get(hueco):
+            valores[hueco] = render.pedir_valor(hueco)
+            if not valores[hueco]:
+                render.aviso("Cancelado: hace falta ese dato.")
+                raise typer.Exit(code=1)
+
+    cargar_herramientas()
+    agente = Agente(_ClienteNulo(), cfg)
+    preparados, problema = ejecutor.preparar(receta, valores, agente._autorizar)
+    if problema:
+        render.error(problema)
+        raise typer.Exit(code=1)
+
+    if not render.aprobar_receta(receta, preparados):
+        render.aviso("Cancelado.")
+        return
+
+    resultado = ejecutor.ejecutar(preparados)
+    for herramienta, salida in resultado.pasos:
+        if salida.ok:
+            render.consola.print(f"[green]✓[/green] {salida.resumen}")
+        else:
+            render.error(salida.resumen)
+
+    if resultado.abortada:
+        render.error(resultado.motivo)
+        return
+
+    receta.veces_usada += 1
+    modelo.guardar(receta, cfg.ruta_recetas)
+    render.consola.print(
+        f"[green]✓[/green] Receta «{receta.nombre}» completada "
+        f"({len(resultado.pasos)} pasos)."
+    )
+
+
+@recetas_app.command("borrar")
+def receta_borrar(nombre: str = typer.Argument(..., help="Nombre de la receta.")):
+    """Elimina una receta guardada."""
+    from asistente.recetas import modelo
+
+    cfg = config_mod.cargar()
+    receta = modelo.buscar(nombre, cfg.ruta_recetas)
+    if receta is None:
+        render.error(f"No encuentro la receta «{nombre}».")
+        raise typer.Exit(code=1)
+
+    if not render.Confirm.ask(
+        f"¿Borro la receta «{receta.nombre}»?", default=False
+    ):
+        render.aviso("Cancelado.")
+        return
+
+    (cfg.ruta_recetas / modelo.archivo_de(receta.nombre)).unlink(missing_ok=True)
+    render.consola.print(f"[green]✓[/green] Receta «{receta.nombre}» borrada.")
+
+
+class _ClienteNulo:
+    """Cliente vacío: ejecutar una receta no necesita el modelo."""
+
+    def responder(self, mensajes, herramientas=None):
+        from asistente.llm.base import RespuestaModelo
+
+        return RespuestaModelo(texto="")
+
+    def disponible(self):
+        return True, ""
 
 
 @app.callback(invoke_without_command=True)
