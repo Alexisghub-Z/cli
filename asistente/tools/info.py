@@ -78,7 +78,8 @@ class InfoArchivo(Herramienta):
     descripcion = (
         "Muestra los datos de un archivo o carpeta: tamaño, tipo, cuándo se "
         "modificó y sus permisos. Úsala cuando el usuario pregunte por las "
-        "características de un archivo concreto."
+        "características de un archivo concreto. No muestra lo que dice el "
+        "archivo: para abrirlo o leer su contenido usa leer_archivo."
     )
     nivel = Nivel.LIBRE
 

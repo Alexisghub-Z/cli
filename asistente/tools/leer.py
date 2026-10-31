@@ -24,7 +24,8 @@ class LeerArchivo(Herramienta):
     nombre = "leer_archivo"
     descripcion = (
         "Lee el contenido de un archivo de texto. Úsala cuando el usuario "
-        "quiera saber qué dice un archivo. No sirve para imágenes ni binarios."
+        "quiera abrir un archivo, saber qué dice o de qué trata. "
+        "No sirve para imágenes ni binarios."
     )
     nivel = Nivel.LIBRE
 

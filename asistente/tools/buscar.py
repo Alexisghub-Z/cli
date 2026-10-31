@@ -31,7 +31,8 @@ class BuscarArchivos(Herramienta):
     descripcion = (
         "Busca archivos dentro de una carpeta y sus subcarpetas, filtrando "
         "por nombre, extensión, tamaño mínimo o antigüedad. Úsala cuando el "
-        "usuario pregunte dónde está algo o qué archivos cumplen una condición."
+        "usuario pregunte dónde está un archivo, quiera encontrarlo por su "
+        "nombre o saber qué archivos cumplen una condición."
     )
     nivel = Nivel.LIBRE
 

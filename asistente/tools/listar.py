@@ -31,7 +31,8 @@ class ListarDirectorio(Herramienta):
     nombre = "listar_directorio"
     descripcion = (
         "Lista los archivos y carpetas de un directorio. "
-        "Úsala para ver qué contiene una carpeta."
+        "Úsala para ver qué contiene una carpeta. Para encontrar un archivo "
+        "por su nombre usa buscar_archivos."
     )
     nivel = Nivel.LIBRE
 
