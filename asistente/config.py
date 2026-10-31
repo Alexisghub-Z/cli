@@ -60,6 +60,10 @@ class Config:
     def ruta_diario(self) -> Path:
         return directorio_datos() / "diario.jsonl"
 
+    @property
+    def ruta_recetas(self) -> Path:
+        return directorio_datos() / "recetas"
+
 
 def ruta_archivo_config() -> Path:
     return directorio_config() / "config.toml"

@@ -147,8 +147,60 @@ __all__ = [
     "tabla_directorio",
     "pedir_confirmacion",
     "aprobar_plan",
+    "aprobar_receta",
+    "tabla_recetas",
+    "pedir_valor",
     "mostrar_paso",
     "mostrar_ejecucion",
     "error",
     "aviso",
 ]
+
+
+def aprobar_receta(receta, preparados) -> bool:
+    """Muestra qué hará una receta y pide una sola aprobación."""
+    cuerpo: list[str] = []
+    if receta.descripcion:
+        cuerpo.append(f"[dim]{receta.descripcion}[/dim]")
+        cuerpo.append("")
+
+    for indice, paso in enumerate(preparados, start=1):
+        cuerpo.append(f"[bold cyan]{indice}.[/bold cyan] {paso.herramienta}")
+        if paso.vista is not None:
+            cuerpo.extend(f"   {linea}" for linea in _lineas_vista(paso.vista))
+        else:
+            argumentos = ", ".join(f"{k}={v}" for k, v in paso.argumentos.items())
+            cuerpo.append(f"   [dim]· {argumentos}[/dim]")
+        cuerpo.append("")
+
+    consola.print(
+        Panel(
+            "\n".join(cuerpo).rstrip(),
+            title=f"[cyan]Receta «{receta.nombre}» ({len(preparados)} pasos)[/cyan]",
+            border_style="cyan",
+        )
+    )
+    return Confirm.ask("¿Ejecuto esta receta?", default=False)
+
+
+def tabla_recetas(recetas) -> "Table":
+    """Lista las recetas guardadas."""
+    tabla = Table(title="Recetas guardadas")
+    tabla.add_column("Nombre", style="cyan", overflow="fold")
+    tabla.add_column("Pasos", justify="right", style="dim")
+    tabla.add_column("Usos", justify="right", style="dim")
+    tabla.add_column("Descripción", overflow="fold")
+    for receta in recetas:
+        huecos = receta.huecos()
+        descripcion = receta.descripcion or "[dim]—[/dim]"
+        if huecos:
+            descripcion += f" [yellow](pide: {', '.join(huecos)})[/yellow]"
+        tabla.add_row(
+            receta.nombre, str(len(receta.pasos)), str(receta.veces_usada), descripcion
+        )
+    return tabla
+
+
+def pedir_valor(nombre: str) -> str:
+    """Pide al usuario el valor de un hueco de la receta."""
+    return consola.input(f"[cyan]{nombre}[/cyan]: ").strip()
