@@ -1,14 +1,22 @@
 # Reparto de tareas
 
-Trabajo en paralelo entre **@Alexisghub-Z** y **@celis23**.
+Trabajo en paralelo entre **@Alexisghub-Z**, **@celis23** y
+**@MonserratLazaro**.
 
 La división sigue las fronteras de los módulos: cada parte toca archivos
 distintos, así que podéis trabajar a la vez sin conflictos en Git.
 
-| Quién | Parte | Por qué |
+| Quién | Parte | Qué mide o construye |
 |---|---|---|
-| **@celis23** | A — medición del modelo | tiene la máquina capaz de correr un 8B |
-| **@Alexisghub-Z** | B — herramientas nuevas | no depende del modelo real |
+| **@celis23** | A — medición automática | cuántas veces el modelo acierta la herramienta |
+| **@Alexisghub-Z** | B — herramientas nuevas | amplía lo que el asistente sabe hacer |
+| **@MonserratLazaro** | C — prueba manual con Ollama | si usarlo de verdad resulta claro y seguro |
+
+**A y C no se solapan**, aunque las dos usen Ollama. La evaluación de A mide
+el acierto sobre 36 peticiones fijas; la prueba de C mira la experiencia de
+uso: si los mensajes se entienden, si la vista previa es clara, si en algún
+caso se salta una confirmación. Un 94% de acierto es compatible con una
+experiencia mala, así que hacen falta las dos.
 
 ## Estado actual
 
@@ -143,11 +151,59 @@ git checkout -b parte-b-herramientas   # Alexis
 Leed [CONTRIBUTING.md](CONTRIBUTING.md): tiene la guía paso a paso para
 agregar una herramienta, con un ejemplo completo que funciona tal cual.
 
-## Si una parte termina antes
+## Dónde se tocan las partes
 
-Las dos partes son independientes **salvo en un punto**: si la medición
-(A3) encuentra que el modelo confunde dos herramientas, la solución está en
-el campo `descripcion` de esa herramienta, que es territorio de la parte B.
+Las tres son independientes **salvo en un punto**: cuando A o C descubren que
+el modelo confunde dos herramientas, la solución está en el campo
+`descripcion` de esa herramienta, que es territorio de la parte B.
 
-Cuando pase, abrid un issue con el nombre de la herramienta y qué eligió el
-modelo en su lugar, en vez de editar el archivo del otro.
+Cuando pase, abrid un issue con la petición exacta, qué herramienta eligió el
+modelo y cuál esperabais, en vez de editar el archivo de otra persona.
+
+Ya ocurrió una vez y funcionó bien: @celis23 midió que «elimina esa carpeta»
+elegía `mover` en lugar de `enviar_a_papelera`, y el arreglo fue reescribir
+las dos descripciones.
+
+---
+
+## Parte C — @MonserratLazaro: prueba manual con Ollama
+
+Sigue [PROBAR.md](PROBAR.md), que tiene los pasos completos. En resumen:
+
+### C1. Montar y probar
+
+Instala Ollama y el asistente, crea el campo de pruebas de juguete que indica
+la guía (**no pruebes sobre tus archivos reales**) y recorre las listas de
+comprobación: consultas, acciones con confirmación, planes de varios pasos,
+deshacer, recetas y modo interactivo.
+
+### C2. Seguridad
+
+La guía lista cinco peticiones que **deben** rechazarse (`/etc`, la clave SSH,
+`sudo rm -rf /`...) y el caso más sutil: una ruta protegida debe bloquearse
+**aunque tú apruebes la acción**.
+
+Si alguna se ejecuta, es un fallo grave: abre un issue de inmediato.
+
+### C3. Anotar lo que chirríe
+
+Lo que buscamos no es solo «funciona o no», sino:
+
+- mensajes que no se entiendan
+- vistas previas que no dejen claro qué va a pasar
+- respuestas en inglés (fallo del prompt del sistema)
+- tiempos de espera incómodos
+- cualquier caso donde el asistente actúe sin pedir permiso
+
+Abre un issue por cada cosa, con la petición exacta, qué herramienta eligió,
+qué esperabas y qué modelo usabas.
+
+**Archivos de la parte C:** issues y, si hace falta, `PROBAR.md`. No necesita
+tocar código.
+
+### Si encuentras un fallo del modelo
+
+Cuando el modelo elige mal una herramienta, el arreglo suele estar en el campo
+`descripcion` de esa herramienta, que es territorio de la parte B. Abre un
+issue en vez de editarlo: así @Alexisghub-Z lo arregla con las pruebas de
+`tests/test_descripciones.py` delante.

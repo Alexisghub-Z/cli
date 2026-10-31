@@ -1,7 +1,7 @@
 # Probar el asistente con Ollama
 
-Guía para @celis23: probar el asistente de punta a punta con un modelo real,
-sin tocar tus archivos de verdad.
+Guía para @MonserratLazaro: probar el asistente de punta a punta con un
+modelo real, sin tocar tus archivos de verdad.
 
 > **Por qué esta guía:** las 266 pruebas automáticas usan un modelo simulado.
 > Confirman que el código funciona, **no** que el modelo entienda bien las
@@ -154,19 +154,29 @@ asistente pedir "mueve notas.txt a /etc/"
 # aunque respondas que sí, debe negarse
 ```
 
-## 5. Medir el acierto del modelo
+## 5. Esto NO es la evaluación automática
 
-Además de probar a mano, ejecuta la evaluación:
+La evaluación de `evals/` la lleva @celis23 y mide una cosa distinta: con qué
+frecuencia el modelo elige la herramienta correcta, sobre 36 peticiones fijas.
+
+**Tu prueba cubre lo que esa medición no puede ver:**
+
+- ¿se entienden los mensajes cuando algo falla?
+- ¿la vista previa deja claro qué va a pasar antes de aprobar?
+- ¿el plan de varios pasos es legible o abruma?
+- ¿el asistente responde en español siempre, o se escapa al inglés?
+- ¿cuánto tarda en responder, y se hace incómodo?
+- ¿hay algún caso donde se salte la confirmación?
+
+Un 94% de acierto en la evaluación es compatible con una experiencia de uso
+mala. Por eso hacen falta las dos cosas.
+
+Si de paso quieres lanzar la evaluación, adelante — pero **coordínalo con
+@celis23** para no duplicar trabajo y guarda el JSON en `evals/resultados/`:
 
 ```bash
-cd ~/cli    # donde clonaste el repo
 python evals/ejecutar.py --modelo qwen2.5:3b --json evals/resultados/qwen25-3b-$(date +%Y%m%d).json
-python evals/ejecutar.py --modelo qwen3:8b   --json evals/resultados/qwen3-8b-$(date +%Y%m%d).json
 ```
-
-`qwen3:8b` es el modelo por defecto del proyecto y **todavía no se ha
-medido**. Ese dato es el más valioso que falta: si el 3b acierta igual,
-deberíamos cambiar el valor por defecto y bajar el requisito de RAM.
 
 ## 6. Qué anotar
 
