@@ -33,8 +33,10 @@ class _ConOrigenYDestino(BaseModel):
 class Mover(Herramienta):
     nombre = "mover"
     descripcion = (
-        "Mueve un archivo o carpeta a otra ubicación. Úsala para reorganizar "
-        "archivos. Si el destino es una carpeta existente, mueve dentro de ella."
+        "Mueve un archivo o carpeta a otra ubicación concreta que el usuario "
+        "indica. Úsala para reorganizar archivos. Si el destino es una "
+        "carpeta existente, mueve dentro de ella. No la uses para eliminar, "
+        "borrar ni deshacerse de algo: para eso está enviar_a_papelera."
     )
     nivel = Nivel.CONFIRMACION
     Params = _ConOrigenYDestino
@@ -80,7 +82,9 @@ class Mover(Herramienta):
 class Copiar(Herramienta):
     nombre = "copiar"
     descripcion = (
-        "Copia un archivo o carpeta a otra ubicación, dejando el original."
+        "Copia un archivo o carpeta a otra ubicación, dejando el original "
+        "donde estaba. Úsala cuando el usuario quiera duplicar algo o hacer "
+        "una copia de seguridad."
     )
     nivel = Nivel.CONFIRMACION
     Params = _ConOrigenYDestino
@@ -125,7 +129,9 @@ class Copiar(Herramienta):
 class Renombrar(Herramienta):
     nombre = "renombrar"
     descripcion = (
-        "Cambia el nombre de un archivo o carpeta, dejándolo en el mismo sitio."
+        "Cambia el nombre de un archivo o carpeta, dejándolo en el mismo "
+        "sitio. Úsala cuando el usuario quiera llamar a algo de otra manera "
+        "sin cambiarlo de carpeta."
     )
     nivel = Nivel.CONFIRMACION
 
@@ -179,7 +185,11 @@ class Renombrar(Herramienta):
 @registrar
 class CrearCarpeta(Herramienta):
     nombre = "crear_carpeta"
-    descripcion = "Crea una carpeta nueva, incluidas las carpetas intermedias."
+    descripcion = (
+        "Crea una carpeta nueva, incluidas las carpetas intermedias que "
+        "falten. Úsala cuando el usuario quiera una carpeta o un directorio "
+        "nuevo donde organizar archivos."
+    )
     nivel = Nivel.CONFIRMACION
 
     class Params(BaseModel):
@@ -217,8 +227,10 @@ class CrearCarpeta(Herramienta):
 class EnviarAPapelera(Herramienta):
     nombre = "enviar_a_papelera"
     descripcion = (
-        "Envía un archivo o carpeta a la papelera del asistente. "
-        "Es reversible con el comando deshacer. Usa esto en lugar de borrar."
+        "Elimina, borra, desecha o quita un archivo o carpeta, enviándolo "
+        "a la papelera del asistente. Es la herramienta correcta para "
+        "cualquier petición de eliminar o borrar algo, y es reversible con "
+        "el comando deshacer. No uses mover para deshacerte de algo."
     )
     nivel = Nivel.CONFIRMACION
 

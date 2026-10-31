@@ -76,10 +76,11 @@ def _hace_cuanto(momento: float) -> str:
 class InfoArchivo(Herramienta):
     nombre = "info_archivo"
     descripcion = (
-        "Muestra los datos de un archivo o carpeta: tamaño, tipo, cuándo se "
-        "modificó y sus permisos. Úsala cuando el usuario pregunte por las "
-        "características de un archivo concreto. No muestra lo que dice el "
-        "archivo: para abrirlo o leer su contenido usa leer_archivo."
+        "Muestra solo los datos técnicos de un archivo o carpeta: cuánto "
+        "pesa, de qué tipo es, cuándo se modificó y sus permisos. Úsala "
+        "cuando pregunten el tamaño, la fecha o los permisos. NO abre el "
+        "archivo ni muestra su contenido ni de qué trata: para abrirlo, "
+        "leerlo o saber de qué trata usa siempre leer_archivo."
     )
     nivel = Nivel.LIBRE
 
