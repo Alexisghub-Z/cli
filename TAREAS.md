@@ -120,6 +120,23 @@ personal». Revisa los `Resultado.error(...)` de `asistente/tools/`.
 
 ---
 
+## Parte E — @celis23: interfaz en terminal (`asistente/cli/`)
+
+Para la demo del hackathon: que se vea bonita y que la pueda usar alguien
+sin experiencia técnica. Rama `interfaz-mascota`.
+
+- Mascota **Bruma** (`asistente/cli/mascota.py`) con 5 expresiones y
+  animación mientras el modelo piensa
+- Bienvenida con ejemplos numerados y estado de Ollama
+- Confirmaciones `[s/N]`, errores sin tracebacks (van a un log) y Ctrl+C
+  que cancela solo la petición en curso
+- Modo ASCII sin color automático para terminales limitadas
+
+**Archivos de la parte E:** `asistente/cli/`, `tests/test_interfaz.py`,
+`docs/capturas.md`. No toca `agent/loop.py` ni `safety/`.
+
+---
+
 ## Cómo trabajar sin pisarse
 
 ```bash
