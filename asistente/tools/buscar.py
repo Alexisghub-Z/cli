@@ -59,7 +59,10 @@ class BuscarArchivos(Herramienta):
     def run(self, params: Params) -> Resultado:  # type: ignore[override]
         raiz = resolver(params.ruta)
         if not raiz.is_dir():
-            return Resultado.error(f"No es una carpeta: {raiz}")
+            return Resultado.error(
+                f"No es una carpeta: {raiz}. Indica la carpeta donde buscar, "
+                "por ejemplo «~/Documentos»."
+            )
 
         texto = params.nombre.lower()
         extension = params.extension.lower().lstrip(".")

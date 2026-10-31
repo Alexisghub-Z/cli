@@ -12,6 +12,8 @@ def cargar_herramientas() -> None:
         archivos,
         buscar,
         comando,
+        comprimir,
+        info,
         leer,
         listar,
         sistema,

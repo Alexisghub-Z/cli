@@ -49,9 +49,15 @@ class ListarDirectorio(Herramienta):
         destino = resolver(params.ruta)
 
         if not destino.exists():
-            return Resultado.error(f"No existe la ruta: {destino}")
+            return Resultado.error(
+                f"No existe la ruta: {destino}. Comprueba cómo se escribe, o "
+                "usa buscar_archivos para localizarla."
+            )
         if not destino.is_dir():
-            return Resultado.error(f"No es una carpeta: {destino}")
+            return Resultado.error(
+                f"No es una carpeta sino un archivo: {destino}. "
+                "Usa leer_archivo para ver su contenido."
+            )
 
         try:
             entradas = sorted(
@@ -59,7 +65,10 @@ class ListarDirectorio(Herramienta):
                 key=lambda p: (not p.is_dir(), p.name.lower()),
             )
         except PermissionError:
-            return Resultado.error(f"Sin permiso para leer: {destino}")
+            return Resultado.error(
+                f"No tengo permiso para leer {destino}. Prueba con una "
+                "carpeta de tu directorio personal."
+            )
 
         if not params.incluir_ocultos:
             entradas = [e for e in entradas if not e.name.startswith(".")]

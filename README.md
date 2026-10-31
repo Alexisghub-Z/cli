@@ -10,8 +10,8 @@ servidor) para hacer tareas a partir de instrucciones en español.
 › ¿qué está ocupando más espacio en mi disco?
 ```
 
-> **Estado:** el alcance de la versión 1 está completo — 11 herramientas,
-> deshacer universal, plan con vista previa y 127 pruebas.
+> **Estado:** el alcance de la versión 1 está completo — 14 herramientas,
+> deshacer universal, plan con vista previa y 174 pruebas.
 >
 > Aún **no se ha medido con un modelo real**: ejecuta la evaluación
 > (`python evals/ejecutar.py`) y comparte el resultado.
@@ -88,6 +88,7 @@ asistente papelera             # qué hay en la papelera
 | Herramienta | Permiso | Qué hace |
 |---|---|---|
 | `listar_directorio` | libre | lista archivos y carpetas |
+| `info_archivo` | libre | tamaño, tipo, fechas y permisos |
 | `buscar_archivos` | libre | busca por nombre, extensión, tamaño o fecha |
 | `leer_archivo` | libre | lee texto (detecta binarios, bloquea rutas sensibles) |
 | `espacio_en_disco` | libre | espacio total, usado y libre |
@@ -97,6 +98,8 @@ asistente papelera             # qué hay en la papelera
 | `renombrar` | confirmación | solo el nombre, no la ruta |
 | `crear_carpeta` | confirmación | crea carpetas intermedias |
 | `enviar_a_papelera` | confirmación | reversible; sustituye al borrado |
+| `comprimir` | confirmación | empaqueta en ZIP |
+| `descomprimir` | confirmación | extrae ZIP y TAR, con defensa *zip slip* |
 | `ejecutar_comando` | confirmación | shell, con el comando a la vista |
 
 `asistente herramientas` las lista en cualquier momento.
@@ -164,6 +167,12 @@ La comprobación revisa **cada tramo** del comando, así que `ls && sudo reboot`
 también se rechaza. Y `leer_archivo` se niega a leer configuración sensible,
 para que el modelo no pueda ver tus claves privadas.
 
+Al descomprimir, cada entrada del archivo se verifica **antes** de extraer
+nada: un ZIP o TAR puede traer nombres como `../../.ssh/authorized_keys` para
+escribir fuera de la carpeta destino (ataque *zip slip*). Se rechazan rutas
+absolutas, `..`, unidades de Windows y enlaces que apunten fuera; si una sola
+entrada es sospechosa, no se extrae nada.
+
 ### Plan antes de actuar
 
 En tareas de varios pasos («organiza mis descargas por tipo»), el asistente
@@ -223,7 +232,7 @@ el modelo repite la misma llamada sin avanzar, para no entrar en ciclos.
 ## Pruebas
 
 ```bash
-pytest          # 127 pruebas, menos de un segundo
+pytest          # 174 pruebas, menos de un segundo
 ```
 
 Las pruebas **no dependen del modelo real**: usan `ClienteSimulado`, que

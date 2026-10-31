@@ -101,7 +101,10 @@ class EjecutarComando(Herramienta):
 
         carpeta = resolver(params.carpeta)
         if not carpeta.is_dir():
-            return Resultado.error(f"No es una carpeta: {carpeta}")
+            return Resultado.error(
+                f"No es una carpeta: {carpeta}. Indica desde dónde ejecutar "
+                "el comando."
+            )
 
         try:
             proceso = subprocess.run(
@@ -118,7 +121,10 @@ class EjecutarComando(Herramienta):
                 f"El comando tardó más de {_TIEMPO_LIMITE} segundos y lo corté."
             )
         except OSError as exc:
-            return Resultado.error(f"No pude ejecutar el comando: {exc}")
+            return Resultado.error(
+                f"No pude ejecutar el comando: {exc}. Comprueba que el "
+                "programa está instalado."
+            )
 
         salida = (proceso.stdout or "")[:_MAX_SALIDA]
         error = (proceso.stderr or "")[:_MAX_SALIDA]
