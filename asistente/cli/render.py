@@ -23,16 +23,80 @@ def tabla_directorio(datos: dict) -> Table:
     return tabla
 
 
-def pedir_confirmacion(nombre: str, detalle: str) -> bool:
-    """Pide permiso al usuario mostrando la acción exacta."""
+_ICONOS = {
+    "crear": "[green]+[/green]",
+    "modificar": "[yellow]~[/yellow]",
+    "mover": "[cyan]→[/cyan]",
+    "eliminar": "[red]-[/red]",
+    "ejecutar": "[magenta]$[/magenta]",
+    "leer": "[dim]·[/dim]",
+}
+
+
+def _lineas_vista(vista) -> list[str]:
+    """Convierte una vista previa en líneas listas para mostrar."""
+    lineas: list[str] = []
+    for cambio in vista.cambios:
+        icono = _ICONOS.get(cambio.tipo, "·")
+        lineas.append(f"{icono} {cambio.detalle}")
+        if cambio.aviso:
+            lineas.append(f"    [yellow]⚠[/yellow] [italic]{cambio.aviso}[/italic]")
+    if not vista.reversible:
+        lineas.append("    [red]⚠ Esta acción no se puede deshacer.[/red]")
+    return lineas
+
+
+def pedir_confirmacion(nombre: str, detalle: str, vista=None) -> bool:
+    """Pide permiso mostrando la acción exacta y su vista previa."""
+    cuerpo = [f"[bold]{nombre}[/bold]", f"[dim]{detalle}[/dim]"]
+    if vista is not None:
+        cuerpo.append("")
+        cuerpo.append("[bold]Esto es lo que pasaría:[/bold]")
+        cuerpo.extend(_lineas_vista(vista))
+
     consola.print(
         Panel(
-            f"[bold]{nombre}[/bold]\n[dim]{detalle}[/dim]",
+            "\n".join(cuerpo),
             title="[yellow]Requiere tu permiso[/yellow]",
             border_style="yellow",
         )
     )
     return Confirm.ask("¿Autorizas esta acción?", default=False)
+
+
+def aprobar_plan(plan, vistas) -> bool:
+    """Muestra el plan completo con la vista previa y pide una aprobación."""
+    cuerpo: list[str] = []
+    if plan.resumen:
+        cuerpo.append(f"[bold]{plan.resumen}[/bold]")
+        cuerpo.append("")
+
+    for indice, (paso, vista) in enumerate(zip(plan.pasos, vistas), start=1):
+        encabezado = f"[bold cyan]{indice}.[/bold cyan] {paso.herramienta}"
+        if paso.motivo:
+            encabezado += f" [dim]— {paso.motivo}[/dim]"
+        cuerpo.append(encabezado)
+        if vista is not None:
+            cuerpo.extend(f"   {linea}" for linea in _lineas_vista(vista))
+        else:
+            argumentos = ", ".join(f"{k}={v}" for k, v in paso.argumentos.items())
+            cuerpo.append(f"   [dim]· {argumentos}[/dim]")
+        cuerpo.append("")
+
+    irreversibles = sum(1 for v in vistas if v is not None and not v.reversible)
+    if irreversibles:
+        cuerpo.append(
+            f"[red]⚠ {irreversibles} paso(s) no se podrán deshacer.[/red]"
+        )
+
+    consola.print(
+        Panel(
+            "\n".join(cuerpo).rstrip(),
+            title=f"[cyan]Plan propuesto ({len(plan.pasos)} pasos)[/cyan]",
+            border_style="cyan",
+        )
+    )
+    return Confirm.ask("¿Ejecuto este plan?", default=False)
 
 
 def mostrar_paso(paso) -> None:
@@ -50,6 +114,8 @@ def mostrar_paso(paso) -> None:
 
 def mostrar_ejecucion(ejecucion) -> None:
     """Muestra el resultado completo de una petición."""
+    if getattr(ejecucion, "plan", None) is not None and ejecucion.pasos:
+        consola.print("[dim]Ejecutando el plan aprobado...[/dim]")
     for paso in ejecucion.pasos:
         mostrar_paso(paso)
 
@@ -80,6 +146,7 @@ __all__ = [
     "Table",
     "tabla_directorio",
     "pedir_confirmacion",
+    "aprobar_plan",
     "mostrar_paso",
     "mostrar_ejecucion",
     "error",

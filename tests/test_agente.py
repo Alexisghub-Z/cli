@@ -81,7 +81,7 @@ def test_usuario_rechaza_la_confirmacion(herramienta_falsa):
     cliente = ClienteSimulado(
         [ClienteSimulado.con_herramienta("escribir_prueba", ruta="/tmp/x")]
     )
-    agente = Agente(cliente, confirmador=lambda n, d: False)
+    agente = Agente(cliente, confirmador=lambda n, d, v: False)
     resultado = agente.ejecutar("escribe algo")
 
     assert resultado.abortada
@@ -97,7 +97,7 @@ def test_usuario_acepta_la_confirmacion(herramienta_falsa, tmp_path):
             ClienteSimulado.con_texto("Hecho."),
         ]
     )
-    agente = Agente(cliente, confirmador=lambda n, d: True)
+    agente = Agente(cliente, confirmador=lambda n, d, v: True)
     resultado = agente.ejecutar("escribe algo")
 
     assert not resultado.abortada
@@ -109,7 +109,7 @@ def test_ruta_protegida_se_deniega_aunque_el_usuario_confirme(herramienta_falsa)
     cliente = ClienteSimulado(
         [ClienteSimulado.con_herramienta("escribir_prueba", ruta="/etc/passwd")]
     )
-    agente = Agente(cliente, confirmador=lambda n, d: True)
+    agente = Agente(cliente, confirmador=lambda n, d, v: True)
     resultado = agente.ejecutar("modifica passwd")
 
     assert resultado.abortada

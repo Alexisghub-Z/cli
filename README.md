@@ -10,9 +10,8 @@ servidor) para hacer tareas a partir de instrucciones en español.
 › ¿qué está ocupando más espacio en mi disco?
 ```
 
-> **Estado:** las 11 herramientas de la versión 1 están implementadas, con
-> deshacer universal y 109 pruebas. Falta el plan con vista previa para tareas
-> de varios pasos (ver [Hoja de ruta](#hoja-de-ruta)).
+> **Estado:** el alcance de la versión 1 está completo — 11 herramientas,
+> deshacer universal, plan con vista previa y 127 pruebas.
 >
 > Aún **no se ha medido con un modelo real**: ejecuta la evaluación
 > (`python evals/ejecutar.py`) y comparte el resultado.
@@ -165,6 +164,35 @@ La comprobación revisa **cada tramo** del comando, así que `ls && sudo reboot`
 también se rechaza. Y `leer_archivo` se niega a leer configuración sensible,
 para que el modelo no pueda ver tus claves privadas.
 
+### Plan antes de actuar
+
+En tareas de varios pasos («organiza mis descargas por tipo»), el asistente
+no va ejecutando acciones de una en una: propone el plan completo con la
+vista previa de cada cambio y lo apruebas **una sola vez**.
+
+```
+╭────────────────────── Plan propuesto (3 pasos) ──────────────────────╮
+│ Organizar las descargas por tipo de archivo                          │
+│                                                                      │
+│ 1. crear_carpeta — carpeta para las fotos                            │
+│    + Nueva carpeta: ~/Descargas/Imagenes                             │
+│                                                                      │
+│ 2. mover — mover la foto                                             │
+│    → ~/Descargas/foto.jpg → ~/Descargas/Imagenes                     │
+│    - foto.jpg dejará de estar en ~/Descargas                          │
+╰──────────────────────────────────────────────────────────────────────╯
+¿Ejecuto este plan? [y/n]
+```
+
+Los símbolos indican el tipo de cambio: `+` crear, `~` modificar, `→` mover,
+`-` eliminar, `$` ejecutar. La vista previa avisa cuando el destino ya existe
+y cuando un paso **no se podrá deshacer**.
+
+Un plan se valida **entero antes de mostrarse**: si algún paso toca una ruta
+protegida o tiene parámetros inválidos, no se te ofrece como viable. Si un
+paso falla durante la ejecución, el plan se detiene ahí en lugar de seguir
+con pasos que dependían de él.
+
 ### Deshacer
 
 Toda operación que modifica archivos se registra en un diario (JSONL, texto
@@ -195,7 +223,7 @@ el modelo repite la misma llamada sin avanzar, para no entrar en ciclos.
 ## Pruebas
 
 ```bash
-pytest          # 109 pruebas, menos de un segundo
+pytest          # 127 pruebas, menos de un segundo
 ```
 
 Las pruebas **no dependen del modelo real**: usan `ClienteSimulado`, que
@@ -229,7 +257,7 @@ La evaluación no ejecuta nada: solo mide qué herramienta elegiría.
 - [x] `ejecutar_comando` (siempre con confirmación)
 - [x] Deshacer universal (`asistente deshacer`)
 - [x] Conjunto de evaluación con 27 tareas en español
-- [ ] Plan y vista previa en tareas de varios pasos
+- [x] Plan y vista previa en tareas de varios pasos
 - [ ] Medir la evaluación con un modelo real
 
 Más adelante: recetas reutilizables, memoria de preferencias, sistema de

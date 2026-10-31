@@ -14,7 +14,9 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from asistente.agent.planner import Plan, proponer
 from asistente.agent.prompt import prompt_sistema
+from asistente.agent.vista_previa import VistaPrevia, calcular
 from asistente.config import Config
 from asistente.llm.base import ClienteLLM, ErrorModelo, LlamadaHerramienta
 from asistente.safety import rutas as rutas_safety
@@ -22,8 +24,13 @@ from asistente.safety.permisos import Decision, Nivel, evaluar
 from asistente.tools import registro
 from asistente.tools.base import Resultado
 
-# Devuelve True si el usuario autoriza la acción descrita.
-Confirmador = Callable[[str, str], bool]
+# Devuelve True si el usuario autoriza la acción.
+# Recibe el nombre de la herramienta, el detalle y la vista previa
+# (None cuando la acción no modifica nada previsible).
+Confirmador = Callable[[str, str, "VistaPrevia | None"], bool]
+
+# Muestra un plan completo y devuelve True si el usuario lo aprueba.
+AprobadorPlan = Callable[["Plan", list[VistaPrevia | None]], bool]
 
 
 @dataclass
@@ -43,6 +50,8 @@ class Ejecucion:
     pasos: list[Paso] = field(default_factory=list)
     abortada: bool = False
     motivo_aborto: str = ""
+    # Plan que se mostró al usuario, si la tarea fue de varios pasos.
+    plan: "Plan | None" = None
 
 
 def _firma(llamada: LlamadaHerramienta) -> str:
@@ -58,15 +67,34 @@ class Agente:
         cliente: ClienteLLM,
         config: Config | None = None,
         confirmador: Confirmador | None = None,
+        aprobador_plan: AprobadorPlan | None = None,
+        planificar: bool = True,
     ) -> None:
         self.cliente = cliente
         self.config = config or Config()
         # Sin confirmador explícito, se deniega lo que requiera permiso:
         # nunca asumimos un "sí" que el usuario no dio.
-        self.confirmador = confirmador or (lambda nombre, detalle: False)
+        self.confirmador = confirmador or (
+            lambda nombre, detalle, vista: False
+        )
+        # Sin aprobador, un plan no se puede autorizar en bloque y se cae
+        # al modo paso a paso, que pregunta por cada acción.
+        self.aprobador_plan = aprobador_plan
+        self.planificar = planificar
 
     def ejecutar(self, peticion: str) -> Ejecucion:
-        """Atiende una petición en lenguaje natural."""
+        """Atiende una petición en lenguaje natural.
+
+        Si la tarea necesita varios pasos, primero propone un plan con la
+        vista previa de los cambios; aprobado en bloque, se ejecuta sin
+        volver a preguntar por cada acción. Si no hay plan o el usuario no
+        lo aprueba, se cae al modo paso a paso.
+        """
+        if self.planificar and self.aprobador_plan is not None:
+            resultado_plan = self._intentar_plan(peticion)
+            if resultado_plan is not None:
+                return resultado_plan
+
         mensajes: list[dict[str, Any]] = [
             {"role": "system", "content": prompt_sistema()},
             {"role": "user", "content": peticion},
@@ -75,6 +103,8 @@ class Agente:
         ejecucion = Ejecucion()
         vistas: set[str] = set()
         errores_json = 0
+        # En el modo paso a paso cada acción se pregunta por separado.
+        autorizado_por_plan = False
 
         for _ in range(self.config.max_pasos):
             try:
@@ -153,11 +183,12 @@ class Agente:
                 ejecucion.motivo_aborto = veredicto.motivo
                 return ejecucion
 
-            if veredicto.decision is Decision.PREGUNTAR:
+            if veredicto.decision is Decision.PREGUNTAR and not autorizado_por_plan:
                 detalle = ", ".join(
                     f"{k}={v}" for k, v in llamada.argumentos.items()
                 )
-                if not self.confirmador(llamada.nombre, detalle):
+                vista = calcular(llamada.nombre, params)
+                if not self.confirmador(llamada.nombre, detalle, vista):
                     ejecucion.abortada = True
                     ejecucion.motivo_aborto = "Cancelado por ti."
                     return ejecucion
@@ -204,3 +235,66 @@ class Agente:
                         f"No puedo modificar «{ruta}»: {motivo}",
                     )
         return evaluar(nivel)
+
+    def _intentar_plan(self, peticion: str) -> Ejecucion | None:
+        """Propone un plan y, si se aprueba, lo ejecuta.
+
+        Devuelve `None` cuando no hay plan que valga (tarea de un paso,
+        modelo que no responde, o plan rechazado), para que el llamador
+        siga en modo paso a paso.
+        """
+        plan = proponer(self.cliente, peticion, max_pasos=self.config.max_pasos)
+        if plan is None:
+            return None
+
+        # Valida todos los pasos ANTES de mostrar nada: un plan con un paso
+        # inválido o bloqueado no se le presenta al usuario como viable.
+        preparados: list[tuple[Any, Any, VistaPrevia | None]] = []
+        for paso in plan.pasos:
+            clase = registro.obtener(paso.herramienta)
+            if clase is None:
+                return None
+            try:
+                params = clase.Params(**paso.argumentos)
+            except ValidationError:
+                return None
+            herramienta = clase()
+            veredicto = self._autorizar(herramienta, params, clase.nivel)
+            if veredicto.decision is Decision.DENEGAR:
+                ejecucion = Ejecucion(plan=plan)
+                ejecucion.abortada = True
+                ejecucion.motivo_aborto = veredicto.motivo
+                return ejecucion
+            preparados.append(
+                (herramienta, params, calcular(paso.herramienta, params))
+            )
+
+        vistas_previas = [vista for _, _, vista in preparados]
+        if not self.aprobador_plan(plan, vistas_previas):
+            ejecucion = Ejecucion(plan=plan)
+            ejecucion.abortada = True
+            ejecucion.motivo_aborto = "No aprobaste el plan."
+            return ejecucion
+
+        # Aprobado en bloque: se ejecuta sin preguntar paso a paso.
+        ejecucion = Ejecucion(plan=plan)
+        for (herramienta, params, _), paso in zip(preparados, plan.pasos):
+            resultado = herramienta.run(params)
+            ejecucion.pasos.append(
+                Paso(paso.herramienta, dict(paso.argumentos), resultado)
+            )
+            # Un fallo detiene el plan: los pasos siguientes probablemente
+            # dependían de este.
+            if not resultado.ok:
+                ejecucion.abortada = True
+                ejecucion.motivo_aborto = (
+                    f"El paso «{paso.herramienta}» falló: {resultado.resumen}. "
+                    "Detuve el plan aquí."
+                )
+                return ejecucion
+
+        hechos = len(ejecucion.pasos)
+        ejecucion.respuesta = (
+            plan.resumen or f"Completé el plan ({hechos} pasos)."
+        )
+        return ejecucion

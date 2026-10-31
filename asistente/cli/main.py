@@ -25,7 +25,12 @@ def _crear_agente(cfg: config_mod.Config) -> Agente:
         temperatura=cfg.temperatura,
         tiempo_limite=cfg.tiempo_limite,
     )
-    return Agente(cliente, cfg, confirmador=render.pedir_confirmacion)
+    return Agente(
+        cliente,
+        cfg,
+        confirmador=render.pedir_confirmacion,
+        aprobador_plan=render.aprobar_plan,
+    )
 
 
 def _comprobar_modelo(agente: Agente) -> bool:
