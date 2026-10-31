@@ -71,3 +71,17 @@ def error(mensaje: str) -> None:
 
 def aviso(mensaje: str) -> None:
     consola.print(f"[yellow]![/yellow] {mensaje}")
+
+
+# Reexportados para que la CLI no importe Rich directamente.
+__all__ = [
+    "consola",
+    "Confirm",
+    "Table",
+    "tabla_directorio",
+    "pedir_confirmacion",
+    "mostrar_paso",
+    "mostrar_ejecucion",
+    "error",
+    "aviso",
+]

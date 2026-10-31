@@ -10,9 +10,12 @@ servidor) para hacer tareas a partir de instrucciones en español.
 › ¿qué está ocupando más espacio en mi disco?
 ```
 
-> **Estado:** en desarrollo. Ya funciona de punta a punta el bucle del agente,
-> el sistema de permisos y la herramienta `listar_directorio`. Las demás
-> herramientas y el comando `deshacer` están en camino (ver [Hoja de ruta](#hoja-de-ruta)).
+> **Estado:** las 11 herramientas de la versión 1 están implementadas, con
+> deshacer universal y 109 pruebas. Falta el plan con vista previa para tareas
+> de varios pasos (ver [Hoja de ruta](#hoja-de-ruta)).
+>
+> Aún **no se ha medido con un modelo real**: ejecuta la evaluación
+> (`python evals/ejecutar.py`) y comparte el resultado.
 
 ## Por qué este y no otro
 
@@ -72,6 +75,33 @@ asistente            # o: asistente charlar
 › salir
 ```
 
+**Deshacer:**
+
+```bash
+asistente deshacer --listar    # qué se puede revertir
+asistente deshacer             # revierte la última operación
+asistente deshacer --todo      # revierte todas las pendientes
+asistente papelera             # qué hay en la papelera
+```
+
+### Herramientas disponibles
+
+| Herramienta | Permiso | Qué hace |
+|---|---|---|
+| `listar_directorio` | libre | lista archivos y carpetas |
+| `buscar_archivos` | libre | busca por nombre, extensión, tamaño o fecha |
+| `leer_archivo` | libre | lee texto (detecta binarios, bloquea rutas sensibles) |
+| `espacio_en_disco` | libre | espacio total, usado y libre |
+| `procesos` | libre | procesos que más memoria consumen |
+| `mover` | confirmación | mueve sin pisar el destino |
+| `copiar` | confirmación | copia dejando el original |
+| `renombrar` | confirmación | solo el nombre, no la ruta |
+| `crear_carpeta` | confirmación | crea carpetas intermedias |
+| `enviar_a_papelera` | confirmación | reversible; sustituye al borrado |
+| `ejecutar_comando` | confirmación | shell, con el comando a la vista |
+
+`asistente herramientas` las lista en cualquier momento.
+
 ## El modelo
 
 Por defecto usa **`qwen3:8b`**, elegido por dos razones:
@@ -123,6 +153,26 @@ configuración sensible como `~/.ssh`, `~/.gnupg`, `~/.aws`) están bloqueadas
 simbólicos, así que un enlace con nombre inocente que apunte a `/etc` tampoco
 pasa.
 
+Además, `ejecutar_comando` rechaza antes de ejecutar:
+
+- escalada de privilegios: `sudo`, `su`, `doas`, `pkexec`, `runas`
+- borrado sin vuelta atrás: `rm -rf`, `shred`
+- operaciones de disco: `mkfs`, `dd of=`, `fdisk`
+- código descargado: `curl … | bash`
+- apagado del sistema y bombas de bifurcación
+
+La comprobación revisa **cada tramo** del comando, así que `ls && sudo reboot`
+también se rechaza. Y `leer_archivo` se niega a leer configuración sensible,
+para que el modelo no pueda ver tus claves privadas.
+
+### Deshacer
+
+Toda operación que modifica archivos se registra en un diario (JSONL, texto
+legible) con lo necesario para revertirla. `enviar_a_papelera` mueve a una
+papelera propia del asistente en lugar de borrar, así que se puede recuperar.
+Al deshacer la creación de una carpeta, si ya tiene archivos dentro el
+asistente se niega a borrarla.
+
 ## Arquitectura
 
 ```
@@ -145,12 +195,26 @@ el modelo repite la misma llamada sin avanzar, para no entrar en ciclos.
 ## Pruebas
 
 ```bash
-pytest
+pytest          # 109 pruebas, menos de un segundo
 ```
 
 Las pruebas **no dependen del modelo real**: usan `ClienteSimulado`, que
-devuelve respuestas predefinidas. Se ejecutan en menos de un segundo y no
-necesitan que Ollama esté instalado.
+devuelve respuestas predefinidas. No necesitan que Ollama esté instalado.
+
+## Evaluación
+
+Para medir si el modelo entiende las peticiones en español y elige bien la
+herramienta, hay un conjunto de 27 tareas:
+
+```bash
+python evals/ejecutar.py                      # con el modelo configurado
+python evals/ejecutar.py --modelo qwen2.5:3b  # comparar modelos
+python evals/ejecutar.py --json salida.json   # guardar el detalle
+```
+
+Incluye tareas que el asistente **debe rechazar** (tocar `/etc`, leer tu clave
+SSH) y tareas donde debe preferir la herramienta segura al comando de shell.
+La evaluación no ejecuta nada: solo mide qué herramienta elegiría.
 
 ## Hoja de ruta
 
@@ -158,14 +222,15 @@ necesitan que Ollama esté instalado.
 - [x] Sistema de permisos y rutas protegidas
 - [x] Bucle del agente con límite de pasos y detección de ciclos
 - [x] `listar_directorio`
-- [ ] `buscar_archivos`, `leer_archivo`
-- [ ] `mover`, `copiar`, `renombrar`, `crear_carpeta`
-- [ ] `enviar_a_papelera` (reversible)
-- [ ] `espacio_en_disco`, `procesos`
-- [ ] `ejecutar_comando` (siempre con confirmación)
-- [ ] Deshacer universal (`asistente deshacer`)
+- [x] `buscar_archivos`, `leer_archivo`
+- [x] `mover`, `copiar`, `renombrar`, `crear_carpeta`
+- [x] `enviar_a_papelera` (reversible)
+- [x] `espacio_en_disco`, `procesos`
+- [x] `ejecutar_comando` (siempre con confirmación)
+- [x] Deshacer universal (`asistente deshacer`)
+- [x] Conjunto de evaluación con 27 tareas en español
 - [ ] Plan y vista previa en tareas de varios pasos
-- [ ] Conjunto de evaluación con 20+ tareas en español
+- [ ] Medir la evaluación con un modelo real
 
 Más adelante: recetas reutilizables, memoria de preferencias, sistema de
 plugins, herramienta de cámara con modelo de visión.

@@ -107,6 +107,76 @@ def configurar(
         render.consola.print(f"  {campo} = {getattr(cfg, campo)}")
 
 
+@app.command("deshacer")
+def deshacer(
+    todo: bool = typer.Option(
+        False, "--todo", help="Deshace todas las operaciones pendientes."
+    ),
+    listar: bool = typer.Option(
+        False, "--listar", help="Solo muestra lo que se puede deshacer."
+    ),
+):
+    """Revierte la última operación (o todas con --todo)."""
+    from asistente.undo.diario import Diario
+    from asistente.undo.revertir import revertir
+
+    cfg = config_mod.cargar()
+    diario = Diario(cfg.ruta_diario)
+    pendientes = diario.pendientes()
+
+    if not pendientes:
+        render.aviso("No hay nada que deshacer.")
+        return
+
+    if listar:
+        tabla = render.Table(title="Operaciones que puedo deshacer")
+        tabla.add_column("#", style="dim", width=3)
+        tabla.add_column("Operación", overflow="fold")
+        for indice, operacion in enumerate(pendientes, start=1):
+            tabla.add_row(str(indice), operacion.descripcion())
+        render.consola.print(tabla)
+        return
+
+    objetivo = pendientes if todo else pendientes[:1]
+    for operacion in objetivo:
+        render.consola.print(f"[dim]{operacion.descripcion()}[/dim]")
+        if not render.Confirm.ask("¿Deshago esta operación?", default=True):
+            render.aviso("Cancelado.")
+            return
+        ok, mensaje = revertir(operacion, diario)
+        if ok:
+            render.consola.print(f"[green]✓[/green] {mensaje}")
+        else:
+            render.error(mensaje)
+
+
+@app.command("papelera")
+def papelera():
+    """Muestra qué hay en la papelera del asistente."""
+    cfg = config_mod.cargar()
+    carpeta = cfg.ruta_papelera
+
+    if not carpeta.exists() or not any(carpeta.iterdir()):
+        render.consola.print("[dim]La papelera está vacía.[/dim]")
+        return
+
+    from asistente.tools.listar import formato_tamano
+
+    tabla = render.Table(title=f"Papelera ({carpeta})")
+    tabla.add_column("Archivo", overflow="fold")
+    tabla.add_column("Tamaño", justify="right", style="dim")
+    total = 0
+    for elemento in sorted(carpeta.iterdir()):
+        try:
+            tamano = elemento.stat().st_size
+        except OSError:
+            tamano = 0
+        total += tamano
+        tabla.add_row(elemento.name, formato_tamano(tamano))
+    render.consola.print(tabla)
+    render.consola.print(f"[dim]Total: {formato_tamano(total)}[/dim]")
+
+
 @app.callback(invoke_without_command=True)
 def principal(ctx: typer.Context):
     """Sin subcomando, entra al modo interactivo."""
