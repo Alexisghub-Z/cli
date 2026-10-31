@@ -326,6 +326,13 @@ modelo, para que no se pierdan al editar una descripción más adelante.
 Más adelante: memoria de preferencias, sistema de plugins, herramienta de
 cámara con modelo de visión.
 
+## Probar a mano
+
+Las pruebas automáticas usan un modelo simulado, así que confirman que el
+código funciona pero no que el modelo entienda bien el español. Para probarlo
+de verdad con Ollama hay una guía paso a paso en [PROBAR.md](PROBAR.md), con
+un campo de pruebas de juguete para no tocar tus archivos reales.
+
 ## Contribuir
 
 Lee [CONTRIBUTING.md](CONTRIBUTING.md); incluye una guía paso a paso para
