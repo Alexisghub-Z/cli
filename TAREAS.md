@@ -38,6 +38,10 @@ El objetivo es responder a una pregunta que todavía no tiene respuesta:
 > Si la máquina no da para el 8B, mide `qwen2.5:3b` (~2 GB) y dilo en el
 > informe: comparar los dos es justamente el punto A2.
 
+> Para probar el asistente a mano con un modelo real, sigue
+> [PROBAR.md](PROBAR.md): tiene los pasos, un campo de pruebas de juguete y
+> la lista de lo que debe rechazarse por seguridad.
+
 ### A1. Montar Ollama y medir la línea base
 
 ```bash
